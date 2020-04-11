@@ -60,16 +60,35 @@ def feature_constructor(df):
     df.loc[:, 'cp'] = df.loc[:, 'power'] / (df.loc[:,'wind_speed'] ** 3)
     #  thrust coefficient
     df.loc[:, 'ct'] = df.loc[:, 'torque'] / (df.loc[:,'wind_speed'] ** 2)
-    # speed rate
-    df.loc[:, 'gs_to_ws'] = df.loc[:, 'generator_speed'] / df.loc[:, 'wind_speed']
+    # rate of wind_speed to power
+    df.loc[:, 'r_windspeed_to_power'] = ((df.loc[:,'wind_speed'] + 5) / (df.loc[:, 'power'] + 5))**2 - 1
+    # rate of wind_speed to generator_speed
+    df.loc[:, 'r_windspeed_to_generator_speed'] = ((df.loc[:, 'wind_speed'] + 5) / (df.loc[:, 'generator_speed'] + 5))**2 - 1
+    # rate of wind_speed to power*generator
+    df.loc[:, 'r_square'] = ((df.loc[:, 'wind_speed'] + 5)**2 / ((df.loc[:, 'generator_speed'] + 5)*(df.loc[:, 'power'] + 5)))**2 - 1
+
     # mean of pitches' angle
-    df.loc[:, 'pitch_angle_mean'] = (df.loc[:, 'pitch1_angle'] + df.loc[:, 'pitch2_angle'] + df.loc[:, 'pitch3_angle']) / 3
+    df.loc[:, 'pitch_angle_mean'] = df.loc[:, ['pitch1_angle','pitch2_angle','pitch3_angle']].mean(axis=1)
     # standard deviation of pitches' angle
-    df.loc[:, 'pitch_angle_sd'] = (((df.loc[:, 'pitch1_angle']-df.loc[:, 'pitch_angle_mean'])** 2 +(df.loc[:, 'pitch2_angle']-df.loc[:, 'pitch_angle_mean'])** 2 +(df.loc[:, 'pitch3_angle']-df.loc[:, 'pitch_angle_mean'])** 2) / 3) ** 0.5
+    df.loc[:, 'pitch_angle_sd'] = df.loc[:, ['pitch1_angle','pitch2_angle','pitch3_angle']].std(axis=1)
     # mean of pitches' speed
-    df.loc[:, 'pitch_speed_mean'] = (df.loc[:, 'pitch1_speed'] + df.loc[:, 'pitch2_speed'] + df.loc[:, 'pitch3_speed']) / 3
+    df.loc[:, 'pitch_speed_mean'] = df.loc[:, ['pitch1_speed','pitch2_speed','pitch3_speed']].mean(axis=1)
+    # standard deviation of pitches' speed
+    df.loc[:, 'pitch_speed_sd'] = df.loc[:, ['pitch1_speed','pitch2_speed','pitch3_speed']].std(axis=1)
     # mean of moto tmp
-    df.loc[:, 'moto_tmp_mean'] = (df.loc[:, 'pitch1_moto_tmp'] + df.loc[:, 'pitch2_moto_tmp'] + df.loc[:, 'pitch3_moto_tmp']) / 3
+    df.loc[:, 'moto_tmp_mean'] = df.loc[:, ['pitch1_moto_tmp','pitch2_moto_tmp','pitch3_moto_tmp']].mean(axis=1)
+    # standard deviation of pitches' moto tmp
+    df.loc[:, 'moto_tmp_sd'] = df.loc[:, ['pitch1_moto_tmp','pitch2_moto_tmp','pitch3_moto_tmp']].std(axis=1)
+
+    # diff of mean of pitches' angle
+    df.loc[:, 'diff_pitch_angle'] = df.loc[:, 'pitch_angle_mean'].diff()
+    # diff of mean of moto tmp
+    df.loc[:, 'diff_moto_tmp'] = df.loc[:, 'moto_tmp_mean'].diff()
+    # diff of ng5_tmp
+    df.loc[:, 'diff_pitch1_ng5_tmp'] = df.loc[:, 'pitch1_ng5_tmp'].diff()
+    df.loc[:, 'diff_pitch2_ng5_tmp'] = df.loc[:, 'pitch2_ng5_tmp'].diff()
+    df.loc[:, 'diff_pitch3_ng5_tmp'] = df.loc[:, 'pitch3_ng5_tmp'].diff()
+    df.dropna(inplace=True)
     return df
 
 
@@ -87,7 +106,7 @@ def get_interval_seconds(row):
 
 # organize features
 def keep_features(df, cols):
-    return df.loc[:,cols]
+    return df.loc[:, cols]
 
 
 wtg_list = [15, 21]
@@ -113,16 +132,23 @@ for wtg_num in wtg_list:
     wtg['rec_time_interval'] = wtg.apply(get_interval_seconds, axis=1)
     print('Record time interval is transformed to seconds.')
     # standardize some new features
-    wtg = one_zero_standardize(wtg, ['torque', 'cp', 'ct', 'gs_to_ws','rec_time_interval'])
-    print('Standardize of torque, cp, ct, gs_to_ws, rec_time_interval is done.')
+    wtg = one_zero_standardize(wtg, ['torque', 'cp', 'ct', 'rec_time_interval'])
+    print('Standardize of torque, cp, ct, rec_time_interval is done.')
     # arrange data columns, drop some old features
-    keeped_features = ['time', 'rec_time_interval', 'wind_speed', 'wind_direction','wind_direction_mean',
+    keeped_features = ['time', 'rec_time_interval',
+                       'wind_speed', 'wind_direction', 'wind_direction_mean',
                        'generator_speed', 'power', 'yaw_position', 'yaw_speed', 'acc_x', 'acc_y',
-                       'environment_tmp', 'int_tmp', 'tmp_diff',
+                       'environment_tmp', 'int_tmp',
                        'pitch1_ng5_tmp', 'pitch2_ng5_tmp', 'pitch3_ng5_tmp',
                        'pitch1_ng5_DC', 'pitch2_ng5_DC', 'pitch3_ng5_DC',
-                       'torque', 'cp', 'ct', 'gs_to_ws',
-                       'pitch_angle_mean', 'pitch_angle_sd', 'pitch_speed_mean', 'moto_tmp_mean', 'tag']
+                       'tmp_diff', 'torque', 'cp', 'ct',
+                       'r_windspeed_to_power', 'r_windspeed_to_generator_speed', 'r_square',
+                       'pitch_angle_mean', 'pitch_angle_sd',
+                       'pitch_speed_mean', 'pitch_speed_sd',
+                       'moto_tmp_mean', 'moto_tmp_sd',
+                       'diff_pitch_angle', 'diff_moto_tmp',
+                       'diff_pitch1_ng5_tmp', 'diff_pitch2_ng5_tmp', 'diff_pitch3_ng5_tmp',
+                       'tag']
     wtg = keep_features(wtg, keeped_features)
     print('Columns is reset.')
     # save to file
