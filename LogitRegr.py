@@ -5,6 +5,7 @@ import pandas as pd
 from sklearn import metrics
 from sklearn.model_selection import StratifiedKFold
 from scipy import interp
+from collections import Counter
 
 
 def sep_X_y(df, X_cols, y_cols):
@@ -14,10 +15,14 @@ def sep_X_y(df, X_cols, y_cols):
 def get_data():
     train = pd.read_csv(r'data/train.csv', parse_dates=[0], dtype={'tag': 'int64'})
     test = pd.read_csv(r'data/test.csv', parse_dates=[0], dtype={'tag': 'int64'})
-    X_cols = ['environment_tmp', 'moto_tmp_mean', 'power', 'wind_speed', 'generator_speed', 'wind_direction',
-              'tmp_diff', 'pitch_angle_sd', 'acc_x', 'acc_y', 'pitch1_ng5_tmp', 'pitch2_ng5_DC',
-              'pitch3_ng5_tmp', 'wind_direction_mean', 'pitch1_ng5_DC', 'pitch2_ng5_tmp', 'yaw_position',
-              'pitch_angle_mean', 'yaw_speed', 'pitch3_ng5_DC', 'cp']
+    X_cols = ['wind_speed',
+       'generator_speed', 'power',
+       'acc_x', 'environment_tmp',
+       'pitch1_ng5_tmp',  'pitch3_ng5_tmp', 'pitch1_ng5_DC',
+       'pitch2_ng5_DC',  'tmp_diff',  'cp',
+       'r_windspeed_to_power', 'r_windspeed_to_generator_speed', 'r_square',
+       'pitch_angle_mean', 'pitch_angle_sd',
+       'moto_tmp_mean', 'moto_tmp_sd']
     y_col = 'tag'
     train_X, train_y = sep_X_y(train, X_cols, y_col)
     test_X, test_y = sep_X_y(test, X_cols, y_col)
@@ -26,13 +31,11 @@ def get_data():
 
 train_X, train_y, test_X, test_y = get_data()
 
+
 # create cross-validation instance
 cv = StratifiedKFold(n_splits=5)
 # create model
-clf = LogisticRegression(solver='sag',
-                         max_iter=500,
-                         class_weight='balanced',
-                         random_state=0).fit(train_X, train_y)
+clf = LogisticRegression(solver='sag', max_iter=500, class_weight='balanced', random_state=0)
 
 tprs = []
 aucs = []
@@ -77,4 +80,16 @@ plt.show()
 
 # test_score = clf.score(test_X, test_y)
 # print('The score in test data is ' + str(test_score))
+
+# calculate score
+y_pred = clf.predict(test_X)
+y_pred_test = np.array([y_pred, test_y]).T
+# TP:0, FN:1, FP: 2, TN:3
+y_pred_test_count = Counter(np.dot(y_pred_test, np.array([1,2])))
+# normal: 0, ice:1
+y_test_count = Counter(test_y)
+
+score = (1 - 0.5 * (y_pred_test_count.get(1)/ y_test_count.get(0)) - 0.5 * (y_pred_test_count.get(2)/ y_test_count.get(1))) * 100
+
+print("The final test score is {:.2f}".format(score))
 
