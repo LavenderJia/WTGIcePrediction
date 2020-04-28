@@ -1,4 +1,4 @@
-from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -35,7 +35,7 @@ train_X, train_y, test_X, test_y = get_data()
 # create cross-validation instance
 cv = StratifiedKFold(n_splits=5)
 # create model
-clf = LogisticRegression(solver='sag', max_iter=500, class_weight='balanced', random_state=0)
+clf = XGBClassifier(objective='binary:logistic', scale_pos_weight=25)
 
 tprs = []
 aucs = []
@@ -93,4 +93,3 @@ y_test_count = Counter(test_y)
 score = (1 - 0.5 * (y_pred_test_count.get(1)/ y_test_count.get(0)) - 0.5 * (y_pred_test_count.get(2)/ y_test_count.get(1))) * 100
 
 print("The final test score is {:.2f}".format(score))
-
