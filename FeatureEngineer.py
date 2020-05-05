@@ -41,9 +41,9 @@ def interval_moving_average(df, calculate_cols):
 def outlier_detector_for_normal(df, cols):
     index = []
     for col in cols:
-        upper =  df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) + 3 * (df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) -
+        upper = df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) + 3 * (df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) -
                                  df.loc[lambda df: df['tag'] == 0, col].quantile(0.25))
-        lower =  df.loc[lambda df: df['tag'] == 0, col].quantile(0.25) - 3 * (df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) -
+        lower = df.loc[lambda df: df['tag'] == 0, col].quantile(0.25) - 3 * (df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) -
                                  df.loc[lambda df: df['tag'] == 0, col].quantile(0.25))
         index.extend(list(df.loc[lambda df: df['tag'] == 0 , :].loc[lambda df: df[col] > upper, : ].index))
         index.extend(list(df.loc[lambda df: df['tag'] == 0 , :].loc[lambda df: df[col] < lower, : ].index))
@@ -137,9 +137,17 @@ def run(max_min=False, lag=False):
         # do moving average
         wtg = interval_moving_average(wtg, wtg.columns[1:26])
         print('moving average is finished.')
+        outlier_detector_columns = list(wtg.columns)[1: -3]
+        # add time series info
+        lag_columns = []
+        if lag:
+            wtg = add_lag(wtg, ['wind_speed', 'environment_tmp'])
+            print('lags are added.')
+            res_file_name += '_TSInfo'
+            lag_columns = list(wtg.columns)[-12:]
         # if wtg num is 15, delete outliers
         if wtg_num == 15:
-            normal_outlier_index = outlier_detector_for_normal(wtg, list(wtg.columns)[1: -3])
+            normal_outlier_index = outlier_detector_for_normal(wtg, outlier_detector_columns)
             wtg = wtg.iloc[list(set(wtg.index) - set(normal_outlier_index)), :]
             wtg.reset_index(inplace=True)
             del wtg['index']
@@ -179,19 +187,16 @@ def run(max_min=False, lag=False):
                            'moto_tmp_mean', 'moto_tmp_sd',
                            #'diff_pitch_angle',
                            'diff_moto_tmp',
-                           'diff_pitch1_ng5_tmp', 'diff_pitch2_ng5_tmp', 'diff_pitch3_ng5_tmp',
-                           'tag']
+                           'diff_pitch1_ng5_tmp', 'diff_pitch2_ng5_tmp', 'diff_pitch3_ng5_tmp'
+                           ]
+        keeped_features.extend(lag_columns)
+        keeped_features.extend(['tag'])
         wtg = keep_features(wtg, keeped_features)
         print('Columns is reset.')
-        if lag:
-            wtg = add_lag(wtg,['wind_speed', 'environment_tmp'])
-            print('lags are added.')
-            res_file_name += '_TSInfo'
-
         # save to file
         # you can later read such file for further analysis
         print('New File is saving...')
-        # wtg.to_csv(r'F:/Temp/FE Data/'+ res_file_name + '.csv', index=False, encoding='utf-8')
+        wtg.to_csv(r'F:/Temp/FE Data/'+ res_file_name + '.csv', index=False, encoding='utf-8')
 
 
 if __name__ == '__main__':
