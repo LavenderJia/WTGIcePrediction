@@ -131,14 +131,11 @@ class LogitRegir(object):
 if __name__ == '__main__':
     start = datetime.datetime.now()
     clf = LogisticRegression(solver='sag', max_iter=500, class_weight='balanced', random_state=0)
-    lr_features = ['wind_speed',
-       'generator_speed', 'power',
-       'acc_x', 'environment_tmp',
-       'pitch1_ng5_tmp',  'pitch3_ng5_tmp', 'pitch1_ng5_DC',
-       'pitch2_ng5_DC',  'tmp_diff',  'cp',
-       'r_windspeed_to_power', 'r_windspeed_to_generator_speed', 'r_square',
-       'pitch_angle_mean', 'pitch_angle_sd',
-       'moto_tmp_mean', 'moto_tmp_sd']
+    lr_features = ['wind_speed',  'generator_speed', 'power', 'yaw_speed', 'acc_x', 'environment_tmp',
+                   'pitch1_ng5_tmp',  'pitch3_ng5_tmp', 'pitch1_ng5_DC', 'pitch2_ng5_DC',  'tmp_diff',
+                   'torque', 'cp', 'ct', 'r_windspeed_to_power', 'r_windspeed_to_generator_speed',
+                   'r_square', 'pitch_angle_mean', 'pitch_angle_sd', 'pitch_speed_sd', 'moto_tmp_mean',
+                   'moto_tmp_sd', 'diff_moto_tmp', 'diff_pitch1_ng5_tmp', 'diff_pitch3_ng5_tmp']
     target = 'tag'
     train = pd.read_csv(r'data/train.csv', parse_dates=[0], dtype={'tag': 'int64'})
     test = pd.read_csv(r'data/test.csv', parse_dates=[0], dtype={'tag': 'int64'})
@@ -146,6 +143,6 @@ if __name__ == '__main__':
             "(df['environment_tmp']>2) | (df['pitch2_ng5_tmp']>2) | (df['cp']>30) | " \
             "(df['ct']<-10)"
     lr: LogitRegir = LogitRegir(clf, train, test, lr_features, target, 5, rules)
-    lr.run(rules=False)
+    lr.run()
     end = datetime.datetime.now()
     print(end - start)

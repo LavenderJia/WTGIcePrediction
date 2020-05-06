@@ -7,6 +7,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import GridSearchCV
 from scipy import interp
 from collections import Counter
+import datetime
 
 
 # split feature and target
@@ -19,10 +20,10 @@ def get_data():
     train = pd.read_csv(r'data/train.csv', parse_dates=[0], dtype={'tag': 'int64'})
     test = pd.read_csv(r'data/test.csv', parse_dates=[0], dtype={'tag': 'int64'})
     X_cols = ['environment_tmp', 'r_windspeed_to_power', 'r_square',
-       'r_windspeed_to_generator_speed', 'pitch_angle_mean', 'moto_tmp_mean',
-       'pitch_angle_sd', 'power', 'tmp_diff', 'generator_speed', 'wind_speed',
-       'moto_tmp_sd', 'torque', 'pitch2_ng5_tmp', 'pitch1_ng5_tmp',
-       'pitch3_ng5_tmp', 'wind_direction']
+       'r_windspeed_to_generator_speed', 'moto_tmp_mean', 'power', 'tmp_diff',
+       'generator_speed', 'wind_speed', 'torque', 'pitch2_ng5_tmp',
+       'pitch1_ng5_tmp', 'pitch3_ng5_tmp', 'wind_direction',
+       'wind_direction_mean', 'acc_x', 'pitch1_ng5_DC', 'pitch2_ng5_DC']
     y_col = 'tag'
     train_X, train_y = split_X_y(train, X_cols, y_col)
     test_X, test_y = split_X_y(test, X_cols, y_col)
@@ -111,6 +112,7 @@ def test_score(pred_y, test_y):
 
 
 if __name__ == '__main__':
+    start = datetime.datetime.now()
     train_X, train_y, test_X, test_y = get_data()
     # create cross-validation instance
     cv = StratifiedKFold(n_splits=5)
@@ -140,3 +142,5 @@ if __name__ == '__main__':
     clf = train_model(clf, cv_data, test_X, test_y)
     pred_y = clf.predict(test_X)
     test_score(pred_y, test_y)
+    end = datetime.datetime.now()
+    print(end - start)
