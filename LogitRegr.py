@@ -131,18 +131,32 @@ class LogitRegir(object):
 if __name__ == '__main__':
     start = datetime.datetime.now()
     clf = LogisticRegression(solver='sag', max_iter=500, class_weight='balanced', random_state=0)
-    lr_features = ['wind_speed',  'generator_speed', 'power', 'yaw_speed', 'acc_x', 'environment_tmp',
-                   'pitch1_ng5_tmp',  'pitch3_ng5_tmp', 'pitch1_ng5_DC', 'pitch2_ng5_DC',  'tmp_diff',
-                   'torque', 'cp', 'ct', 'r_windspeed_to_power', 'r_windspeed_to_generator_speed',
-                   'r_square', 'pitch_angle_mean', 'pitch_angle_sd', 'pitch_speed_sd', 'moto_tmp_mean',
-                   'moto_tmp_sd', 'diff_moto_tmp', 'diff_pitch1_ng5_tmp', 'diff_pitch3_ng5_tmp']
+    lr_features = ['wind_speed', 'wind_direction','wind_direction_mean', 'generator_speed', 'power',
+       'acc_x', 'environment_tmp', 'pitch1_ng5_tmp', 'pitch2_ng5_tmp', 'pitch3_ng5_tmp', 'pitch1_ng5_DC',
+       'pitch2_ng5_DC', 'tmp_diff', 'torque', 'cp', 'ct',
+       'r_windspeed_to_power', 'r_windspeed_to_generator_speed', 'r_square', 'moto_tmp_mean']
     target = 'tag'
     train = pd.read_csv(r'data/train.csv', parse_dates=[0], dtype={'tag': 'int64'})
     test = pd.read_csv(r'data/test.csv', parse_dates=[0], dtype={'tag': 'int64'})
     rules = "(df['wind_speed']<-2) | (df['wind_speed']>2) | (df['generator_speed']<-2) | " \
             "(df['environment_tmp']>2) | (df['pitch2_ng5_tmp']>2) | (df['cp']>30) | " \
             "(df['ct']<-10)"
+
     lr: LogitRegir = LogitRegir(clf, train, test, lr_features, target, 5, rules)
-    lr.run()
+    lr.run(rules=False)
+    # divide data by wind_speed = -0.5
+    """
+    train_part1 = train.loc[lambda df: df['wind_speed'] <= -0.5,:]
+    train_part2 = train.loc[lambda df: df['wind_speed'] > -0.5, :]
+    test_part1 = test.loc[lambda df: df['wind_speed'] <= -0.5,:]
+    test_part2 = test.loc[lambda df: df['wind_speed'] > -0.5, :]
+    lr1: LogitRegir = LogitRegir(clf, train_part1, test_part1, lr_features, target, 5, rules)
+    test_y1, pred_y1 = lr1.train_model()
+    lr2: LogitRegir = LogitRegir(clf, train_part2, test_part2, lr_features, target, 5, rules)
+    test_y2, pred_y2 = lr2.train_model()
+    pred_y = np.hstack((pred_y1, pred_y2))
+    test_y = np.hstack((test_y1, test_y2))
+    lr1.test_score(pred_y, test_y)
+    """
     end = datetime.datetime.now()
     print(end - start)
