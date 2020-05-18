@@ -88,7 +88,7 @@ def feature_constructor(df):
     df.loc[:, 'diff_pitch1_ng5_tmp'] = df.loc[:, 'pitch1_ng5_tmp'].diff()
     df.loc[:, 'diff_pitch2_ng5_tmp'] = df.loc[:, 'pitch2_ng5_tmp'].diff()
     df.loc[:, 'diff_pitch3_ng5_tmp'] = df.loc[:, 'pitch3_ng5_tmp'].diff()
-    df.dropna(inplace=True)
+    # df.dropna(inplace=True)
     return df
 
 
@@ -118,12 +118,12 @@ def keep_features(df, cols):
 # add lag of variables
 def add_lag(df, cols):
     for col in cols:
-        df.loc[:, col + '_lag40'] = df.loc[:, col].shift(40)
-        df.loc[:, col + '_lag80'] = df.loc[:, col].shift(80)
-        df.loc[:, col + '_lag160'] = df.loc[:, col].shift(160)
-        df.loc[:, col + '_lag240'] = df.loc[:, col].shift(240)
-        df.loc[:, col + '_lag400'] = df.loc[:, col].shift(400)
-        df.loc[:, col + '_lag560'] = df.loc[:, col].shift(560)
+        df.loc[:, col + '_lag40'] = df.loc[:, col].diff(periods=40)
+        df.loc[:, col + '_lag80'] = df.loc[:, col].diff(periods=80)
+        df.loc[:, col + '_lag160'] = df.loc[:, col].diff(periods=160)
+        df.loc[:, col + '_lag240'] = df.loc[:, col].diff(periods=240)
+        df.loc[:, col + '_lag400'] = df.loc[:, col].diff(periods=400)
+        df.loc[:, col + '_lag560'] = df.loc[:, col].diff(periods=560)
     return df
 
 

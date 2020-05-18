@@ -7,10 +7,11 @@ from sklearn.model_selection import StratifiedKFold
 from scipy import interp
 from collections import Counter
 import datetime
+from joblib import dump, load
 
 
 class LogitRegir(object):
-    def __init__(self, clf, train, test, lr_features, targets, cv, rules):
+    def __init__(self, clf, train, test, lr_features, targets, cv, model_name):
         """
         the construction method
         :param clf: classifier model
@@ -27,7 +28,7 @@ class LogitRegir(object):
         self.lr_features = lr_features
         self.targets = targets
         self.cv = StratifiedKFold(n_splits=cv)
-        self.rules = rules
+        self.model_name=model_name
 
     # split feature and target
     def split_X_y(self, df, X_cols, y_cols):
@@ -38,21 +39,6 @@ class LogitRegir(object):
         train_X, train_y = self.split_X_y(self.train, self.lr_features, self.targets)
         test_X, test_y = self.split_X_y(self.test, self.lr_features, self.targets)
         return train_X, train_y, test_X, test_y
-
-    def rule(self):
-        """
-        generate self.pred_y_rule, self.test_y_rule, new self.train, self.test
-        :return:
-        """
-        self.train.loc[:, 'pred_y'] = -1
-        self.train.loc[lambda df: eval(self.rules), 'pred_y'] = 0
-        self.train = self.train.loc[lambda df: df['pred_y'] == -1, :]
-
-        self.test.loc[:, 'pred_y'] = -1
-        self.test.loc[lambda df: eval(self.rules), 'pred_y'] = 0
-        self.pred_y_rule = self.test.loc[lambda df: df['pred_y']==0, 'pred_y'].values
-        self.test_y_rule = self.test.loc[lambda df: df['pred_y']==0, 'tag'].values
-        self.test = self.test.loc[lambda df: df['pred_y'] == -1, :]
 
     def train_model(self):
         """
@@ -97,66 +83,131 @@ class LogitRegir(object):
         ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
                title="ROC Curve")
         ax.legend(loc="lower right")
-        plt.savefig('res_fig/LogitRegrRes.png')
+        plt.savefig('res_fig/'+ self.model_name +'.png')
+        print(r'5 Cross Validation Mean AUC: %0.2f, Standard Deviation is %0.2f' % (mean_auc, std_auc))
+        # train with all train data and compute the train and test accuracy respectively
+        start = datetime.datetime.now()
+        self.clf.fit(train_X, train_y)
+        end = datetime.datetime.now()
+        print('Fit Time:')
+        print(end - start)
+        dump(self.clf, 'model/' + self.model_name + '.joblib')
+        train_acc = self.clf.score(train_X, train_y)
+        test_acc = self.clf.score(test_X, test_y)
+        print('Train Accuracy is %0.2f, Test Accuracy is %0.2f' %(train_acc, test_acc))
+        test_pred_y = self.clf.predict(test_X)
+        train_pred_y = self.clf.predict(train_X)
+        return train_y, train_pred_y, test_y, test_pred_y
 
-        pred_y = self.clf.predict(test_X)
-        return test_y, pred_y
 
-    # calculate test score
-    def test_score(self, pred_y, test_y):
-        y_pred_test = np.array([pred_y, test_y]).T
-        # TP:0, FN:1, FP: 2, TN:3
-        y_pred_test_count = Counter(np.dot(y_pred_test, np.array([1, 2])))
-        print(y_pred_test_count)
-        # normal: 0, ice:1
-        y_test_count = Counter(test_y)
-        print(y_test_count)
-        score = (1 - 0.5 * (y_pred_test_count.get(1)/y_test_count.get(0)) - 0.5 * (y_pred_test_count.get(2)/y_test_count.get(1))) * 100
-        print("The final test score is {:.2f}".format(score))
+def rule(train, test, rules):
+    """
+    generate train_rule, test_rule, train, test
+    :return:
+    """
+    train_rule = train.loc[lambda df: eval(rules), :]
+    train.drop(index=train_rule.index, axis=0, inplace=True)
+    test_rule = test.loc[lambda df: eval(rules), :]
+    test.drop(index=test_rule.index, axis=0, inplace=True)
+    return train_rule, test_rule, train, test
 
-    def run(self, rules=True):
-        if rules:
-            self.rule()
-            test_y_lr, pred_y_lr = self.train_model()
-            #print(len(test_y_lr))
-            #print(pred_y_lr[0:10])
-            pred_y = np.hstack((self.pred_y_rule, pred_y_lr))
-            test_y = np.hstack((self.test_y_rule, test_y_lr))
-            self.test_score(pred_y, test_y)
-        else:
-            test_y, pred_y = self.train_model()
-            self.test_score(pred_y, test_y)
+
+def competition_score(pred_y, actual_y):
+    y_pred_actual = np.array([pred_y, actual_y]).T
+    # TP:0, FN:1, FP: 2, TN:3
+    y_pred_actual_count = Counter(np.dot(y_pred_actual, np.array([1, 2])))
+    print('TP:%d, FN:%d, FP:%d, TN:%d' % (y_pred_actual_count.get(0), y_pred_actual_count.get(1),
+                                          y_pred_actual_count.get(2), y_pred_actual_count.get(3)))
+    # normal: 0, ice:1
+    y_actual_count = Counter(actual_y)
+    print(y_actual_count)
+    score = (1 - 0.5 * (y_pred_actual_count.get(1)/y_actual_count.get(0)) - 0.5 * (y_pred_actual_count.get(2)/y_actual_count.get(1))) * 100
+    #print("The final test score is {:.2f}".format(score))
+    return score
 
 
 if __name__ == '__main__':
-    start = datetime.datetime.now()
-    clf = LogisticRegression(solver='sag', max_iter=500, class_weight='balanced', random_state=0)
-    lr_features = ['wind_speed', 'wind_direction','wind_direction_mean', 'generator_speed', 'power',
-       'acc_x', 'environment_tmp', 'pitch1_ng5_tmp', 'pitch2_ng5_tmp', 'pitch3_ng5_tmp', 'pitch1_ng5_DC',
-       'pitch2_ng5_DC', 'tmp_diff', 'torque', 'cp', 'ct',
-       'r_windspeed_to_power', 'r_windspeed_to_generator_speed', 'r_square', 'moto_tmp_mean']
+    lr_features = ['r_windspeed_to_power', 'environment_tmp', 'moto_tmp_mean', 'power',
+                   'r_windspeed_to_generator_speed', 'wind_speed', 'r_square', 'acc_x',
+                   'pitch_angle_sd', 'tmp_diff', 'moto_tmp_sd', 'pitch2_ng5_DC',
+                   'pitch1_ng5_tmp', 'generator_speed', 'pitch1_ng5_DC', 'pitch3_ng5_tmp',
+                   'pitch_angle_mean', 'cp']
+    lr_features_v2 = ['r_windspeed_to_power','environment_tmp','moto_tmp_mean','wind_speed_lag560',
+                      'environment_tmp_lag400','power','r_windspeed_to_generator_speed','tmp_diff',
+                      'pitch_angle_sd','environment_tmp_lag560','wind_speed_lag40','environment_tmp_lag160',
+                      'wind_speed','r_square','acc_x','pitch1_ng5_tmp','pitch2_ng5_DC','pitch3_ng5_tmp',
+                      'moto_tmp_sd','environment_tmp_lag240','wind_speed_lag400','pitch1_ng5_DC',
+                      'generator_speed','pitch_angle_mean','wind_speed_lag80','environment_tmp_lag40',
+                      'wind_speed_lag240']
     target = 'tag'
-    train = pd.read_csv(r'data/train.csv', parse_dates=[0], dtype={'tag': 'int64'})
-    test = pd.read_csv(r'data/test.csv', parse_dates=[0], dtype={'tag': 'int64'})
+    train = pd.read_csv(r'data/train2.csv', parse_dates=[0], dtype={'tag': 'int64'})
+    test = pd.read_csv(r'data/test2.csv', parse_dates=[0], dtype={'tag': 'int64'})
     rules = "(df['wind_speed']<-2) | (df['wind_speed']>2) | (df['generator_speed']<-2) | " \
             "(df['environment_tmp']>2) | (df['pitch2_ng5_tmp']>2) | (df['cp']>30) | " \
             "(df['ct']<-10)"
+    train_rule, test_rule, train, test = rule(train, test, rules)
+    train_rule.loc[:, 'pred'] = 0
+    train_pred_y = train_rule.loc[:, 'pred'].values
+    train_actual_y = train_rule.loc[:, 'tag'].values
+    test_rule.loc[:, 'pred'] = 0
+    test_pred_y = test_rule.loc[:, 'pred'].values
+    test_actual_y = test_rule.loc[:, 'tag'].values
 
-    lr: LogitRegir = LogitRegir(clf, train, test, lr_features, target, 5, rules)
-    lr.run(rules=False)
-    # divide data by wind_speed = -0.5
+    # for data has time series info
+
+    clf = load('model/LR_Rule.joblib')
+    train_has_null = train[train.isnull().T.any()]  # take down
+    if len(train_has_null) >= 1:
+        train_has_null_pred_y = clf.predict(train_has_null.loc[:, lr_features].values)
+        train_pred_y = np.hstack((train_pred_y, train_has_null_pred_y))
+        train_actual_y = np.hstack((train_actual_y, train_has_null.loc[:, target].values))
+        train.drop(index=train_has_null.index, axis=0, inplace=True)
+
+    test_has_null = test[test.isnull().T.any()]
+    if len(test_has_null) >= 1:
+        test_has_null_pred_y = clf.predict(test_has_null.loc[:, lr_features].values)
+        test_pred_y = np.hstack((test_pred_y, test_has_null_pred_y))
+        test_actual_y = np.hstack((test_actual_y, test_has_null.loc[:, target].values))
+        test.drop(index=test_has_null.index, axis=0, inplace=True)
+
+    clf = LogisticRegression(solver='sag', max_iter=500, class_weight='balanced', random_state=0)
+    # without data division
     """
+    lr: LogitRegir = LogitRegir(clf, train, test, lr_features_v2, target, 5, 'LR_Rule_TimeSeriesInfo')
+    train_y, train_model_pred_y, test_y, test_model_pred_y = lr.train_model()
+    train_pred_y = np.hstack((train_pred_y, train_model_pred_y))
+    train_actual_y = np.hstack((train_actual_y, train_y))
+    train_competition_score = competition_score(train_pred_y, train_actual_y)
+    print("The Train Competition Score is {:.2f}".format(train_competition_score))
+    test_pred_y = np.hstack((test_pred_y, test_model_pred_y))
+    test_actual_y = np.hstack((test_actual_y, test_y))
+    test_competition_score = competition_score(test_pred_y, test_actual_y)
+    print("The Test Competition Score is {:.2f}".format(test_competition_score))
+    """
+
+    # divide data by wind_speed = -0.5
+    #"""
     train_part1 = train.loc[lambda df: df['wind_speed'] <= -0.5,:]
     train_part2 = train.loc[lambda df: df['wind_speed'] > -0.5, :]
     test_part1 = test.loc[lambda df: df['wind_speed'] <= -0.5,:]
     test_part2 = test.loc[lambda df: df['wind_speed'] > -0.5, :]
-    lr1: LogitRegir = LogitRegir(clf, train_part1, test_part1, lr_features, target, 5, rules)
-    test_y1, pred_y1 = lr1.train_model()
-    lr2: LogitRegir = LogitRegir(clf, train_part2, test_part2, lr_features, target, 5, rules)
-    test_y2, pred_y2 = lr2.train_model()
-    pred_y = np.hstack((pred_y1, pred_y2))
+    lr1: LogitRegir = LogitRegir(clf, train_part1, test_part1, lr_features_v2, target, 5, 'LR_Rule_Division_TimeSeriesInfo_part1')
+    train_y1, train_pred_y1, test_y1, test_pred_y1 = lr1.train_model()
+    lr2: LogitRegir = LogitRegir(clf, train_part2, test_part2, lr_features_v2, target, 5, 'LR_Rule_Division_TimeSeriesInfo_part2')
+    train_y2, train_pred_y2, test_y2, test_pred_y2 = lr2.train_model()
+    # join part1 and part2
+    train_model_pred_y = np.hstack((train_pred_y1, train_pred_y2))
+    train_y = np.hstack((train_y1, train_y2))
+    test_model_pred_y = np.hstack((test_pred_y1, test_pred_y2))
     test_y = np.hstack((test_y1, test_y2))
-    lr1.test_score(pred_y, test_y)
-    """
-    end = datetime.datetime.now()
-    print(end - start)
+    # join model res and rule res
+    train_pred_y = np.hstack((train_pred_y, train_model_pred_y))
+    train_actual_y = np.hstack((train_actual_y, train_y))
+    test_pred_y = np.hstack((test_pred_y, test_model_pred_y))
+    test_actual_y = np.hstack((test_actual_y, test_y))
+    train_competition_score = competition_score(train_pred_y, train_actual_y)
+    print("The Train Competition Score is {:.2f}".format(train_competition_score))
+    test_competition_score = competition_score(test_pred_y, test_actual_y)
+    print("The Test Competition Score is {:.2f}".format(test_competition_score))
+    #"""
+
