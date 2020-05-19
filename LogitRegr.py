@@ -14,7 +14,7 @@ class LogitRegir(object):
     def __init__(self, clf, train, test, lr_features, targets, cv, model_name):
         """
         the construction method
-        :param clf: classifier model
+        :param clf: classifier model_lr
         :param train: train data - dataframe
         :param test: test data - dataframe
         :param lr_features: features for LogitReg
@@ -42,11 +42,11 @@ class LogitRegir(object):
 
     def train_model(self):
         """
-        train and estimate model
+        train and estimate model_lr
         draw ROC curves of train and test
-        :param clf: the model for classifier
+        :param clf: the model_lr for classifier
         :param cv: train data splited by StratifiedKFold
-        :return: the trained model
+        :return: the trained model_lr
         """
         train_X, train_y, test_X, test_y = self.get_data()
         cv_data = self.cv.split(train_X, train_y)
@@ -55,7 +55,7 @@ class LogitRegir(object):
         aucs = []  # list for saving aucs in each cv
         mean_fpr = np.linspace(0, 1, 100)  # mean FP rates
         fig, ax = plt.subplots()
-        for i, (train, valid) in enumerate(cv_data): # 5 fold training of model
+        for i, (train, valid) in enumerate(cv_data): # 5 fold training of model_lr
             self.clf.fit(train_X[train], train_y[train])
             # plot ROC
             viz = metrics.plot_roc_curve(self.clf, train_X[valid], train_y[valid], name='ROC fold {}'.format(i), alpha=0.3, lw=1, ax=ax)
@@ -83,20 +83,20 @@ class LogitRegir(object):
         ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
                title="ROC Curve")
         ax.legend(loc="lower right")
-        plt.savefig('res_fig/'+ self.model_name +'.png')
+        plt.savefig('res_fig_lr/'+ self.model_name +'.png')
         print(r'5 Cross Validation Mean AUC: %0.2f, Standard Deviation is %0.2f' % (mean_auc, std_auc))
         # train with all train data and compute the train and test accuracy respectively
         start = datetime.datetime.now()
         self.clf.fit(train_X, train_y)
+        test_pred_y = self.clf.predict(test_X)
         end = datetime.datetime.now()
         print('Fit Time:')
         print(end - start)
-        dump(self.clf, 'model/' + self.model_name + '.joblib')
+        train_pred_y = self.clf.predict(train_X)
+        dump(self.clf, 'model_lr/' + self.model_name + '.joblib')
         train_acc = self.clf.score(train_X, train_y)
         test_acc = self.clf.score(test_X, test_y)
         print('Train Accuracy is %0.2f, Test Accuracy is %0.2f' %(train_acc, test_acc))
-        test_pred_y = self.clf.predict(test_X)
-        train_pred_y = self.clf.predict(train_X)
         return train_y, train_pred_y, test_y, test_pred_y
 
 
@@ -127,21 +127,25 @@ def competition_score(pred_y, actual_y):
 
 
 if __name__ == '__main__':
-    lr_features = ['r_windspeed_to_power', 'environment_tmp', 'moto_tmp_mean', 'power',
-                   'r_windspeed_to_generator_speed', 'wind_speed', 'r_square', 'acc_x',
-                   'pitch_angle_sd', 'tmp_diff', 'moto_tmp_sd', 'pitch2_ng5_DC',
-                   'pitch1_ng5_tmp', 'generator_speed', 'pitch1_ng5_DC', 'pitch3_ng5_tmp',
-                   'pitch_angle_mean', 'cp']
-    lr_features_v2 = ['r_windspeed_to_power','environment_tmp','moto_tmp_mean','wind_speed_lag560',
-                      'environment_tmp_lag400','power','r_windspeed_to_generator_speed','tmp_diff',
-                      'pitch_angle_sd','environment_tmp_lag560','wind_speed_lag40','environment_tmp_lag160',
-                      'wind_speed','r_square','acc_x','pitch1_ng5_tmp','pitch2_ng5_DC','pitch3_ng5_tmp',
-                      'moto_tmp_sd','environment_tmp_lag240','wind_speed_lag400','pitch1_ng5_DC',
-                      'generator_speed','pitch_angle_mean','wind_speed_lag80','environment_tmp_lag40',
-                      'wind_speed_lag240']
+    lr_features =['r_windspeed_to_power', 'environment_tmp', 'moto_tmp_mean', 'tmp_diff',
+                    'pitch_angle_sd', 'moto_tmp_sd', 'pitch_angle_mean', 'wind_speed', 'wind_direction',
+                    'generator_speed', 'r_windspeed_to_generator_speed', 'pitch1_ng5_tmp', 'r_square',
+                    'pitch1_ng5_DC', 'yaw_speed', 'acc_x', 'power', 'pitch2_ng5_DC', 'pitch3_ng5_tmp',
+                    'wind_direction_mean']
+
+
+    lr_features_v2 = ['r_windspeed_to_power', 'environment_tmp', 'environment_tmp_lag560',
+                        'wind_speed_lag560', 'tmp_diff', 'pitch_angle_sd', 'wind_speed_lag160',
+                        'pitch_angle_mean', 'moto_tmp_sd', 'wind_speed_lag40', 'environment_tmp_lag400',
+                        'wind_direction', 'pitch1_ng5_tmp', 'wind_speed', 'generator_speed',
+                        'r_windspeed_to_generator_speed', 'r_square', 'environment_tmp_lag160',
+                        'pitch1_ng5_DC', 'wind_speed_lag80', 'environment_tmp_lag240', 'acc_x',
+                        'wind_speed_lag240', 'wind_speed_lag400', 'pitch3_ng5_tmp', 'pitch2_ng5_DC',
+                        'wind_direction_mean']
+
     target = 'tag'
-    train = pd.read_csv(r'data/train2.csv', parse_dates=[0], dtype={'tag': 'int64'})
-    test = pd.read_csv(r'data/test2.csv', parse_dates=[0], dtype={'tag': 'int64'})
+    train = pd.read_csv(r'data/train1.csv', parse_dates=[0], dtype={'tag': 'int64'})
+    test = pd.read_csv(r'data/test1.csv', parse_dates=[0], dtype={'tag': 'int64'})
     rules = "(df['wind_speed']<-2) | (df['wind_speed']>2) | (df['generator_speed']<-2) | " \
             "(df['environment_tmp']>2) | (df['pitch2_ng5_tmp']>2) | (df['cp']>30) | " \
             "(df['ct']<-10)"
@@ -154,8 +158,8 @@ if __name__ == '__main__':
     test_actual_y = test_rule.loc[:, 'tag'].values
 
     # for data has time series info
-
-    clf = load('model/LR_Rule.joblib')
+    #"""
+    clf = load('model_lr/LR_Rule2.joblib')
     train_has_null = train[train.isnull().T.any()]  # take down
     if len(train_has_null) >= 1:
         train_has_null_pred_y = clf.predict(train_has_null.loc[:, lr_features].values)
@@ -169,11 +173,11 @@ if __name__ == '__main__':
         test_pred_y = np.hstack((test_pred_y, test_has_null_pred_y))
         test_actual_y = np.hstack((test_actual_y, test_has_null.loc[:, target].values))
         test.drop(index=test_has_null.index, axis=0, inplace=True)
-
+    #"""
     clf = LogisticRegression(solver='sag', max_iter=500, class_weight='balanced', random_state=0)
     # without data division
     """
-    lr: LogitRegir = LogitRegir(clf, train, test, lr_features_v2, target, 5, 'LR_Rule_TimeSeriesInfo')
+    lr: LogitRegir = LogitRegir(clf, train, test, lr_features_v2, target, 5, 'LR_Rule_TSInfo2')
     train_y, train_model_pred_y, test_y, test_model_pred_y = lr.train_model()
     train_pred_y = np.hstack((train_pred_y, train_model_pred_y))
     train_actual_y = np.hstack((train_actual_y, train_y))
@@ -191,16 +195,16 @@ if __name__ == '__main__':
     train_part2 = train.loc[lambda df: df['wind_speed'] > -0.5, :]
     test_part1 = test.loc[lambda df: df['wind_speed'] <= -0.5,:]
     test_part2 = test.loc[lambda df: df['wind_speed'] > -0.5, :]
-    lr1: LogitRegir = LogitRegir(clf, train_part1, test_part1, lr_features_v2, target, 5, 'LR_Rule_Division_TimeSeriesInfo_part1')
+    lr1: LogitRegir = LogitRegir(clf, train_part1, test_part1, lr_features_v2, target, 5, 'LR_Rule_TSInfo_Division2_part1')
     train_y1, train_pred_y1, test_y1, test_pred_y1 = lr1.train_model()
-    lr2: LogitRegir = LogitRegir(clf, train_part2, test_part2, lr_features_v2, target, 5, 'LR_Rule_Division_TimeSeriesInfo_part2')
+    lr2: LogitRegir = LogitRegir(clf, train_part2, test_part2, lr_features_v2, target, 5, 'LR_Rule_TSInfo_Division2_part2')
     train_y2, train_pred_y2, test_y2, test_pred_y2 = lr2.train_model()
     # join part1 and part2
     train_model_pred_y = np.hstack((train_pred_y1, train_pred_y2))
     train_y = np.hstack((train_y1, train_y2))
     test_model_pred_y = np.hstack((test_pred_y1, test_pred_y2))
     test_y = np.hstack((test_y1, test_y2))
-    # join model res and rule res
+    # join model_lr res and rule res
     train_pred_y = np.hstack((train_pred_y, train_model_pred_y))
     train_actual_y = np.hstack((train_actual_y, train_y))
     test_pred_y = np.hstack((test_pred_y, test_model_pred_y))

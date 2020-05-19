@@ -146,7 +146,7 @@ def run(max_min=False, lag=False):
             res_file_name += '_TSInfo'
             lag_columns = list(wtg.columns)[-12:]
         # if wtg num is 15, delete outliers
-        if wtg_num == 15:
+        if wtg_num == 21:
             normal_outlier_index = outlier_detector_for_normal(wtg, outlier_detector_columns)
             wtg = wtg.iloc[list(set(wtg.index) - set(normal_outlier_index)), :]
             wtg.reset_index(inplace=True)
@@ -196,15 +196,17 @@ def run(max_min=False, lag=False):
         # save to file
         # you can later read such file for further analysis
         print('New File is saving...')
-        wtg.to_csv(r'F:/Temp/FE Data/'+ res_file_name + '.csv', index=False, encoding='utf-8')
+        wtg.to_csv(r'F:/Temp/FE Data V2/'+ res_file_name + '.csv', index=False, encoding='utf-8')
 
 
 if __name__ == '__main__':
-    print('Do feature engineering with one zero standardize and without time series info.')
-    run()
-    print('Do feature engineering with max min standardize and without time series info.')
-    run(max_min=True)
+
+    #print('Do feature engineering with one zero standardize and without time series info.')
+    #run()
+    #print('Do feature engineering with max min standardize and without time series info.')
+    #run(max_min=True)
     print('Do feature engineering with one zero standardize and with time series info.')
     run(lag=True)
-    print('Do feature engineering with max min standardize and with time series info.')
-    run(max_min=True, lag=True)
+
+    #print('Do feature engineering with max min standardize and with time series info.')
+    #run(max_min=True, lag=True)
