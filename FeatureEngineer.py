@@ -13,12 +13,15 @@ outliers in 15 and only in normal data.
 # read data
 # change the directory here to your own directory
 # and also remember to change the diretory in the end of this code
+# the function for reading tagged data according to the number of wtg
 def read_data(wtg_num):
+    # parse dtype of column 0 to date and set tag column to int64
     wtg = pd.read_csv(r'F:/Temp/Tag/' + str(wtg_num) + r'_tagged.csv', parse_dates=[0], dtype={'tag': 'int64'})
     print('Data of wtg ' + str(wtg_num) + ' is read.')
     return wtg
 
 
+# do diff to time to get time interval
 def get_record_interval(df):
     df.loc[:, 'rec_time_interval'] = df.time.diff()  # time interval of two records
     return df
@@ -26,12 +29,17 @@ def get_record_interval(df):
 
 # interval moving average
 def interval_moving_average(df, calculate_cols):
-    #  get index where data is separated
+    #  get index where data interval is larger then 30s
     sep_index = df.loc[lambda df: df['rec_time_interval'] > timedelta(seconds=30), :].index
+    # set first start index zero
     start_index = 0
+    # loop over intervals in sep index and to moving average to every data part
     for index in sep_index:
+        # set end_index as the current index
         end_index = index
+        # do moving average
         df.loc[start_index:end_index, calculate_cols] = df.loc[start_index:end_index, calculate_cols].rolling(3, win_type=None, center=True, min_periods=1).mean()
+        # set next start index as end index to start next step of loop
         start_index = end_index
     return df
 
@@ -39,14 +47,20 @@ def interval_moving_average(df, calculate_cols):
 # for extreme outliers: Q3 + 3 * (Q3 - Q1); Q1 - 3 * (Q3 - Q1)
 # just delete outliers in normal data
 def outlier_detector_for_normal(df, cols):
+    # the list for collection of index of outlier index
     index = []
+    # for columns to detect outliers
     for col in cols:
+        # calculate upper bound of the column
         upper = df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) + 3 * (df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) -
                                  df.loc[lambda df: df['tag'] == 0, col].quantile(0.25))
+        # calculate lower bound of the column
         lower = df.loc[lambda df: df['tag'] == 0, col].quantile(0.25) - 3 * (df.loc[lambda df: df['tag'] == 0, col].quantile(0.75) -
                                  df.loc[lambda df: df['tag'] == 0, col].quantile(0.25))
+        # add outlier index to index list
         index.extend(list(df.loc[lambda df: df['tag'] == 0 , :].loc[lambda df: df[col] > upper, : ].index))
         index.extend(list(df.loc[lambda df: df['tag'] == 0 , :].loc[lambda df: df[col] < lower, : ].index))
+        # drop duplicates in index list
         index = list(set(index))
     return index
 
@@ -115,7 +129,7 @@ def keep_features(df, cols):
     return df.loc[:, cols]
 
 
-# add lag of variables
+# add lag of variables by interval of 40, 80, 160, 240, 400, 560
 def add_lag(df, cols):
     for col in cols:
         df.loc[:, col + '_lag40'] = df.loc[:, col].diff(periods=40)
@@ -127,22 +141,31 @@ def add_lag(df, cols):
     return df
 
 
+# the process function calling the above functions
 def run(max_min=False, lag=False):
+    # the number list of wtg
     wtg_list = [15, 21]
+    # do process to each wtg
     for wtg_num in wtg_list:
+        # set res file name
         res_file_name = str(wtg_num) + '_FE'
+        # read data of wtg
         wtg = read_data(wtg_num)
         # get record interval
         wtg = get_record_interval(wtg)
         # do moving average
         wtg = interval_moving_average(wtg, wtg.columns[1:26])
         print('moving average is finished.')
+        # columns for outlier detecting
         outlier_detector_columns = list(wtg.columns)[1: -3]
-        # add time series info
+        # add time series info, lagged columns
         lag_columns = []
+        # if lag param is True
         if lag:
+            # add lag
             wtg = add_lag(wtg, ['wind_speed', 'environment_tmp'])
             print('lags are added.')
+            # change res file name
             res_file_name += '_TSInfo'
             lag_columns = list(wtg.columns)[-12:]
         # if wtg num is 15, delete outliers
@@ -160,9 +183,11 @@ def run(max_min=False, lag=False):
         wtg['rec_time_interval'] = wtg.apply(get_interval_seconds, axis=1)
         print('Record time interval is transformed to seconds.')
         # standardize some new features
+        # if max_min param is true, use max_min_standardize
         if max_min:
             wtg = max_min_standardize(wtg, ['torque', 'cp', 'ct', 'rec_time_interval'])
             res_file_name += '_MMS'
+        # if max_min param is false, use one_zero_standardize
         else:
             wtg = one_zero_standardize(wtg, ['torque', 'cp', 'ct', 'rec_time_interval'])
             res_file_name += '_OZS'
@@ -189,6 +214,7 @@ def run(max_min=False, lag=False):
                            'diff_moto_tmp',
                            'diff_pitch1_ng5_tmp', 'diff_pitch2_ng5_tmp', 'diff_pitch3_ng5_tmp'
                            ]
+        # reset columns
         keeped_features.extend(lag_columns)
         keeped_features.extend(['tag'])
         wtg = keep_features(wtg, keeped_features)
@@ -200,13 +226,12 @@ def run(max_min=False, lag=False):
 
 
 if __name__ == '__main__':
-
-    #print('Do feature engineering with one zero standardize and without time series info.')
-    #run()
-    #print('Do feature engineering with max min standardize and without time series info.')
-    #run(max_min=True)
+    # form different forms of data
+    print('Do feature engineering with one zero standardize and without time series info.')
+    run()
+    print('Do feature engineering with max min standardize and without time series info.')
+    run(max_min=True)
     print('Do feature engineering with one zero standardize and with time series info.')
     run(lag=True)
-
-    #print('Do feature engineering with max min standardize and with time series info.')
-    #run(max_min=True, lag=True)
+    print('Do feature engineering with max min standardize and with time series info.')
+    run(max_min=True, lag=True)
